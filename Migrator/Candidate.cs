@@ -7,14 +7,12 @@ using System.Xml.Serialization;
 
 namespace Migrator
 {
-    // [GeneratedCode("xsd", "4.7.3081.0")]
     [Serializable]
-    // [DebuggerStepThrough]
-    // [DesignerCategory("code")]
-    // [XmlType(AnonymousType = true)]
     [XmlRoot(ElementName = "candidate", Namespace = "", IsNullable = false)]
     public class Candidate
     {
+        public (string Folder, string SubFolder) Folder { get; set; }
+
         [XmlElement("id", Form = XmlSchemaForm.Unqualified)]
         public string Id { get; set; }
 
@@ -115,10 +113,7 @@ namespace Migrator
         public string SpXmlForm { get; set; }
     }
 
-    // [GeneratedCode("xsd", "4.7.3081.0")]
     [Serializable]
-    // [DebuggerStepThrough]
-    // [DesignerCategory("code")]
     [XmlType("candidateHot_eventsHot_event", AnonymousType = true)]
     public class CandidateHotEventsHotEvent
     {
@@ -154,28 +149,51 @@ namespace Migrator
         public string ContentType { get; set; }
 
         [XmlElement("text", Form = XmlSchemaForm.Unqualified, IsNullable = true)]
-        public CandidateAttachmentsAttachmentText[] Text { get; set; }
+        public CandidateAttachmentsAttachmentText Text { get; set; }
+
+        [XmlElement("data", Form = XmlSchemaForm.Unqualified, IsNullable = true)]
+        public CandidateAttachmentsAttachmentData Data { get; set; }
+
+        [XmlElement("file_name", Form = XmlSchemaForm.Unqualified, IsNullable = true)]
+        public string FileName { get; set; }
     }
 
-    // [GeneratedCode("xsd", "4.7.3081.0")]
     [Serializable]
-    // [DebuggerStepThrough]
-    // [DesignerCategory("code")]
+    [XmlType("candidateAttachmentsAttachmentData", AnonymousType = true)]
+    public class CandidateAttachmentsAttachmentData
+    {
+        [XmlAttribute("INLINE-EXT-OBJECT-ID")]
+        public string InlineExtObjectId { get; set; }
+
+        [XmlAttribute("EXT-OBJECT-ID")]
+        public string ExtObjectId { get; set; }
+
+        [XmlAttribute("SIZE")]
+        public uint Size { get; set; }
+
+        [XmlText]
+        public byte[] Value { get; set; }
+    }
+
+    [Serializable]
     [XmlType("candidateAttachmentsAttachmentText", AnonymousType = true)]
     public class CandidateAttachmentsAttachmentText
     {
         [XmlAttribute("INLINE-EXT-OBJECT-ID")]
         public string InlineExtObjectId { get; set; }
 
-        /// <remarks/>
+        [XmlAttribute("EXT-OBJECT-ID")]
+        public string ExtObjectId { get; set; }
+
+        [XmlAttribute("SIZE")]
+        public uint Size { get; set; }
+
         [XmlText]
-        public string Value { get; set; }
+        public string[] Value { get; set; }
     }
 
     // [GeneratedCode("xsd", "4.7.3081.0")]
     [Serializable]
-    // [DebuggerStepThrough]
-    // [DesignerCategory("code")]
     [XmlType("candidateSpotsSpot", AnonymousType = true)]
     public class CandidateSpotsSpot
     {
@@ -194,8 +212,6 @@ namespace Migrator
 
     // [GeneratedCode("xsd", "4.7.3081.0")]
     [Serializable]
-    // [DebuggerStepThrough]
-    // [DesignerCategory("code")]
     [XmlType("candidateDoc_info", AnonymousType = true)]
     public class CandidateDocInfo
     {
@@ -208,8 +224,6 @@ namespace Migrator
 
     // [GeneratedCode("xsd", "4.7.3081.0")]
     [Serializable]
-    // [DebuggerStepThrough]
-    // [DesignerCategory("code")]
     [XmlType("candidateDoc_infoModification", AnonymousType = true)]
     public class CandidateDocInfoModification
     {
@@ -219,8 +233,6 @@ namespace Migrator
 
     // [GeneratedCode("xsd", "4.7.3081.0")]
     [Serializable]
-    // [DebuggerStepThrough]
-    // [DesignerCategory("code")]
     [XmlType("candidateDoc_infoCreation", AnonymousType = true)]
     public class CandidateDocInfoCreation
     {
