@@ -29,25 +29,12 @@ namespace Migrator
 
         private static bool ConnectToCrm()
         {
-            // const string connectionString = @"Url=https://teamint.crm.dynamics.com/XRMServices/2011/Organization.svc; Username=TEAM\smirnoff; Password=; authtype=IFD";
-            // var conn = new CrmServiceClient(connectionString);
-            // var internalUrl = "https://teamint.crm.dynamics.com/XRMServices/2011/Organization.svc";
-            /*const string internalUrl = "https://teamint.crm.dynamics.com";
-            const string orgName = "teamint";
             const string userName = "Sergey.Smirnoff@teaminternational.com";
-            var password = ReadPassword();
-            var credentials = new NetworkCredential(userName, password);
-            const AuthenticationType authType = AuthenticationType.Office365;
-            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-            var conn = new CrmServiceClient(credentials, authType, internalUrl, "443", orgName, true, true, null);
-            return conn.IsReady;*/
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             var password = ReadPassword();
-            var crmServiceClient =
-                new CrmServiceClient($"AuthType=Office365;Username=Sergey.Smirnoff@teaminternational.com; Password={password};Url=https://teamint.crm.dynamics.com");
-            _orgService = (IOrganizationService) crmServiceClient.OrganizationWebProxyClient != null
-                ? (IOrganizationService) crmServiceClient.OrganizationWebProxyClient
-                : (IOrganizationService) crmServiceClient.OrganizationServiceProxy;
+            // var crmServiceClient = new CrmServiceClient($"AuthType=Office365;Username=Sergey.Smirnoff@teaminternational.com; Password={new NetworkCredential("", password).Password};Url=https://teamint.crm.dynamics.com");
+            var crmServiceClient = new CrmServiceClient(userName, password, "NorthAmerica", "teamint", false, true, null, true);
+            _orgService = crmServiceClient.OrganizationWebProxyClient ?? (IOrganizationService) crmServiceClient.OrganizationServiceProxy;
             var userRequest = new WhoAmIRequest();
             try
             {
@@ -62,7 +49,7 @@ namespace Migrator
             }
         }
 
-        private static string ReadPassword()
+        private static SecureString ReadPassword()
         {
             var password = new SecureString();
             var nextKey = Console.ReadKey(true);
@@ -89,8 +76,7 @@ namespace Migrator
             }
 
             password.MakeReadOnly();
-            var credentials = new NetworkCredential("", password);
-            return credentials.Password;
+            return password;
         }
 
         private static IEnumerable<CandidateDyn> ConvertToCandidateDyn(IEnumerable<Candidate> candidates)
