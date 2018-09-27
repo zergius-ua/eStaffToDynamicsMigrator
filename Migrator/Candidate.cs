@@ -1,7 +1,4 @@
 using System;
-using System.CodeDom.Compiler;
-using System.ComponentModel;
-using System.Diagnostics;
 using System.Xml.Schema;
 using System.Xml.Serialization;
 
@@ -120,19 +117,14 @@ namespace Migrator
         [XmlElement("type_id", Form = XmlSchemaForm.Unqualified)]
         public string TypeId { get; set; }
 
-        /// <remarks/>
         [XmlElement("vacancy_id", Form = XmlSchemaForm.Unqualified)]
         public string VacancyId { get; set; }
 
-        /// <remarks/>
         [XmlElement("date", Form = XmlSchemaForm.Unqualified)]
         public string Date { get; set; }
     }
 
-    // [GeneratedCode("xsd", "4.7.3081.0")]
     [Serializable]
-    // [DebuggerStepThrough]
-    // [DesignerCategory("code")]
     [XmlType("candidateAttachmentsAttachment", AnonymousType = true)]
     public class CandidateAttachmentsAttachment
     {
@@ -192,7 +184,6 @@ namespace Migrator
         public string[] Value { get; set; }
     }
 
-    // [GeneratedCode("xsd", "4.7.3081.0")]
     [Serializable]
     [XmlType("candidateSpotsSpot", AnonymousType = true)]
     public class CandidateSpotsSpot
@@ -210,7 +201,6 @@ namespace Migrator
         public string StateDate { get; set; }
     }
 
-    // [GeneratedCode("xsd", "4.7.3081.0")]
     [Serializable]
     [XmlType("candidateDoc_info", AnonymousType = true)]
     public class CandidateDocInfo
@@ -222,7 +212,6 @@ namespace Migrator
         public CandidateDocInfoModification[] Modification { get; set; }
     }
 
-    // [GeneratedCode("xsd", "4.7.3081.0")]
     [Serializable]
     [XmlType("candidateDoc_infoModification", AnonymousType = true)]
     public class CandidateDocInfoModification
@@ -231,7 +220,6 @@ namespace Migrator
         public string UserLogin { get; set; }
     }
 
-    // [GeneratedCode("xsd", "4.7.3081.0")]
     [Serializable]
     [XmlType("candidateDoc_infoCreation", AnonymousType = true)]
     public class CandidateDocInfoCreation
