@@ -231,8 +231,6 @@ namespace Migrator
         public void Stop()
         {
             active = false;
-            // Draw(' ');
-            // Console.SetCursorPosition(left - 1, top);
             Console.Write("\b");
         }
 
@@ -248,7 +246,6 @@ namespace Migrator
         private void Draw(char c)
         {
             Console.SetCursorPosition(left, top);
-            // Console.ForegroundColor = ConsoleColor.Green;
             Console.Write(c);
         }
 
