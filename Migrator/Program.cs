@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -10,8 +9,6 @@ using System.Threading;
 using System.Xml.Serialization;
 using Microsoft.Crm.Sdk.Messages;
 using Microsoft.Xrm.Sdk;
-using Microsoft.Xrm.Sdk.Messages;
-using Microsoft.Xrm.Sdk.Metadata;
 using Microsoft.Xrm.Sdk.Query;
 using Microsoft.Xrm.Tooling.Connector;
 
@@ -29,9 +26,9 @@ namespace Migrator
         {
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             
-            /*using (var spinner = new Spinner(Console.CursorLeft, Console.CursorTop))
+            /*Console.WriteLine("Reading eStaff data...");
+            using (var spinner = new Spinner(Console.CursorLeft, Console.CursorTop))
             {
-                Console.WriteLine("Reading eStaff data...");
                 spinner.Start();
                 _candidates = ReadXmlFolder<Candidate>($@"{ImportDataPathBase}candidates\");
                 spinner.Stop();
@@ -54,14 +51,11 @@ namespace Migrator
                         ColumnSet = new ColumnSet(true),
                         Criteria = new FilterExpression()
                     };
-                    // qe.Criteria.AddCondition(new ConditionExpression("yomifullname", ConditionOperator.Equal, "Andriy Syrovenko"));
-                    qe.Criteria.AddCondition(new ConditionExpression("yomifullname", ConditionOperator.Equal, "Andrew Shtompel"));
+                    qe.Criteria.AddCondition(new ConditionExpression("yomifullname", ConditionOperator.Equal, "Andriy Syrovenko"));
+                    // qe.Criteria.AddCondition(new ConditionExpression("yomifullname", ConditionOperator.Equal, "Andrew Shtompel"));
                     // this will retrieve all fields, you should only retrieve attribute you need ;)
                     var collection = _orgService.RetrieveMultiple(qe);
                     spinner.Stop();
-                    // _entities = collection.Entities;
-                    // _entities = collection.Entities.Select(i=>i.ToEntity<Entity>()).Where(e=>e[""] == "");
-                    
                     
                     _entities = collection.Entities.ToList();
                     /*collection.Entities.ToList().ForEach(entity =>
@@ -71,6 +65,12 @@ namespace Migrator
                             _entities.Add(entity);
                         }
                     });*/
+                    var ent = _entities[0];
+                    ent["mobilephone"] = ent["mobilephone"] + " (---)";
+                    // ent.Attributes[""] = "";
+                    // ent.GetAttributeValue<DateTime>("") = DateTime.Now;
+                    _orgService.Update(ent);
+                    
                     Console.SetCursorPosition(Console.CursorLeft, Console.CursorTop);
                 }
             }
@@ -142,7 +142,7 @@ namespace Migrator
         private static IEnumerable<CandidateDyn> ConvertToCandidateDyn(IEnumerable<Candidate> candidates)
         {
             var list = new List<CandidateDyn>();
-            candidates.ToList().ForEach(candidate =>
+            candidates.Where(i=>i.FullName == "Syrovenko Andriy").ToList().ForEach(candidate =>
             {
                 var candidateDyn = new CandidateDyn(candidate);
                 list.Add(candidateDyn);

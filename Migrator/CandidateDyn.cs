@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Microsoft.Xrm.Sdk;
 
 namespace Migrator
@@ -8,7 +9,11 @@ namespace Migrator
         public CandidateDyn(Candidate candidate)
         {
             Address1 = new AddressDyn(candidate);
-            BirthDate = DateTime.Parse(candidate.BirthDate);
+            if (candidate.BirthDate != null)
+            {
+                BirthDate = DateTime.Parse(candidate.BirthDate);
+            }
+
             Business2 = candidate.WorkPhone;
             MobilePhone = candidate.MobilePhone;
             Home2 = candidate.HomePhone;
@@ -17,7 +22,18 @@ namespace Migrator
             MiddleName = candidate.MiddleName;
             EMailAddress1 = candidate.Email;
             EMailAddress2 = candidate.Email2;
-            //dcrs_MSEducation = ParseEducation(candidate.Education);
+            if (candidate.Attachments.Any())
+            {
+                candidate.Attachments
+                    .Where(a => a.TypeId == "resume")
+                    .ToList()
+                    .ForEach(att =>
+                    {
+                        dcrs_Resume = string.Join(Environment.NewLine, att.Text.Value);
+                        if(!string.IsNullOrEmpty(att.Date))
+                        dcrs_ResumeDate = DateTime.Parse(att.Date);
+                    });
+            }
         }
 
         public OptionSetValue AccountRoleCode { get; set; }
@@ -208,7 +224,7 @@ namespace Migrator
     public class Lookup
     {
     }
-    
+
     public class Image
     {
     }
