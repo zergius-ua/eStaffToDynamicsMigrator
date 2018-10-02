@@ -4,6 +4,13 @@ namespace Migrator
 {
     public class AddressDyn
     {
+        public AddressDyn(Candidate candidate)
+        {
+            Line1 = candidate.Address;
+            Telephone1 = candidate.MobilePhone;
+            Telephone2 = candidate.HomePhone;
+        }
+
         public string AddressId { get; set; }
         public OptionSetValue AddressTypeCode { get; set; }
         public string City { get; set; }

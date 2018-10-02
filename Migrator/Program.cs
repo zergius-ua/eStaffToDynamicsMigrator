@@ -1,13 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Security;
 using System.Text;
+using System.Threading;
 using System.Xml.Serialization;
 using Microsoft.Crm.Sdk.Messages;
 using Microsoft.Xrm.Sdk;
+using Microsoft.Xrm.Sdk.Messages;
+using Microsoft.Xrm.Sdk.Metadata;
+using Microsoft.Xrm.Sdk.Query;
 using Microsoft.Xrm.Tooling.Connector;
 
 namespace Migrator
@@ -15,16 +20,62 @@ namespace Migrator
     internal static class Program
     {
         private static IEnumerable<Candidate> _candidates;
+        private static IEnumerable<CandidateDyn> _candidatesDyn;
         private const string ImportDataPathBase = @"d:\EStaff_Server\data_rcr\obj\";
         private static IOrganizationService _orgService;
+        private static IList<Entity> _entities;
 
         public static void Main(string[] args)
         {
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-            // _candidates = ReadXmlFolder<Candidate>($@"{ImportDataPathBase}candidates\");
-            // var candidateDyn = ConvertToCandidateDyn(_candidates);
+            
+            /*using (var spinner = new Spinner(Console.CursorLeft, Console.CursorTop))
+            {
+                Console.WriteLine("Reading eStaff data...");
+                spinner.Start();
+                _candidates = ReadXmlFolder<Candidate>($@"{ImportDataPathBase}candidates\");
+                spinner.Stop();
+                Console.WriteLine("Converting to Dynamics 365...");
+                spinner.Start();
+                _candidatesDyn = ConvertToCandidateDyn(_candidates);
+                spinner.Stop();
+            }*/
 
             var isConnected = ConnectToCrm();
+            if (isConnected)
+            {
+                Console.WriteLine("Connected");
+                Console.WriteLine("Retrieving data...");
+                using (var spinner = new Spinner(Console.CursorLeft, Console.CursorTop))
+                {
+                    spinner.Start();
+                    var qe = new QueryExpression("contact")
+                    {
+                        ColumnSet = new ColumnSet(true),
+                        Criteria = new FilterExpression()
+                    };
+                    // qe.Criteria.AddCondition(new ConditionExpression("yomifullname", ConditionOperator.Equal, "Andriy Syrovenko"));
+                    qe.Criteria.AddCondition(new ConditionExpression("yomifullname", ConditionOperator.Equal, "Andrew Shtompel"));
+                    // this will retrieve all fields, you should only retrieve attribute you need ;)
+                    var collection = _orgService.RetrieveMultiple(qe);
+                    spinner.Stop();
+                    // _entities = collection.Entities;
+                    // _entities = collection.Entities.Select(i=>i.ToEntity<Entity>()).Where(e=>e[""] == "");
+                    
+                    
+                    _entities = collection.Entities.ToList();
+                    /*collection.Entities.ToList().ForEach(entity =>
+                    {
+                        if(entity.GetAttributeValue<string>("yomifullname") == "Andriy Syrovenko")
+                        {
+                            _entities.Add(entity);
+                        }
+                    });*/
+                    Console.SetCursorPosition(Console.CursorLeft, Console.CursorTop);
+                }
+            }
+
+            Console.WriteLine("Exiting application.");
         }
 
         private static bool ConnectToCrm()
@@ -32,9 +83,15 @@ namespace Migrator
             const string userName = "Sergey.Smirnoff@teaminternational.com";
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             var password = ReadPassword();
-            // var crmServiceClient = new CrmServiceClient($"AuthType=Office365;Username=Sergey.Smirnoff@teaminternational.com; Password={new NetworkCredential("", password).Password};Url=https://teamint.crm.dynamics.com");
-            var crmServiceClient = new CrmServiceClient(userName, password, "NorthAmerica", "teamint", false, true, null, true);
-            _orgService = crmServiceClient.OrganizationWebProxyClient ?? (IOrganizationService) crmServiceClient.OrganizationServiceProxy;
+            Console.WriteLine("Connecting...");
+            using (var spinner = new Spinner(Console.CursorLeft, Console.CursorTop))
+            {
+                spinner.Start();
+                var crmServiceClient = new CrmServiceClient(userName, password, "NorthAmerica", "teamint", false, true, null, true);
+                _orgService = crmServiceClient.OrganizationWebProxyClient ?? (IOrganizationService) crmServiceClient.OrganizationServiceProxy;
+                spinner.Stop();
+            }
+
             var userRequest = new WhoAmIRequest();
             try
             {
@@ -52,6 +109,7 @@ namespace Migrator
         private static SecureString ReadPassword()
         {
             var password = new SecureString();
+            Console.WriteLine("Enter your password:");
             var nextKey = Console.ReadKey(true);
             while (nextKey.Key != ConsoleKey.Enter)
             {
@@ -75,13 +133,21 @@ namespace Migrator
                 nextKey = Console.ReadKey(true);
             }
 
+            Console.WriteLine("");
+
             password.MakeReadOnly();
             return password;
         }
 
         private static IEnumerable<CandidateDyn> ConvertToCandidateDyn(IEnumerable<Candidate> candidates)
         {
-            throw new NotImplementedException();
+            var list = new List<CandidateDyn>();
+            candidates.ToList().ForEach(candidate =>
+            {
+                var candidateDyn = new CandidateDyn(candidate);
+                list.Add(candidateDyn);
+            });
+            return list;
         }
 
         private static IEnumerable<T> ReadXmlFolder<T>(string path) where T : class
@@ -134,6 +200,66 @@ namespace Migrator
                 atts.ForEach(att => { att.Data.Value = File.ReadAllBytes(name); });
             });
             return candidate;
+        }
+    }
+
+    public class Spinner : IDisposable
+    {
+        private const string Sequence = @"/-\|";
+        private int counter = 0;
+        private readonly int left;
+        private readonly int top;
+        private readonly int delay;
+        private bool active;
+        private readonly Thread thread;
+
+        public Spinner(int left, int top, int delay = 100)
+        {
+            this.left = left;
+            this.top = top;
+            this.delay = delay;
+            thread = new Thread(Spin);
+        }
+
+        public void Start()
+        {
+            active = true;
+            if (!thread.IsAlive)
+                thread.Start();
+        }
+
+        public void Stop()
+        {
+            active = false;
+            // Draw(' ');
+            // Console.SetCursorPosition(left - 1, top);
+            Console.Write("\b");
+        }
+
+        private void Spin()
+        {
+            while (active)
+            {
+                Turn();
+                Thread.Sleep(delay);
+            }
+        }
+
+        private void Draw(char c)
+        {
+            Console.SetCursorPosition(left, top);
+            // Console.ForegroundColor = ConsoleColor.Green;
+            Console.Write(c);
+        }
+
+        private void Turn()
+        {
+            Draw(Sequence[++counter % Sequence.Length]);
+        }
+
+        public void Dispose()
+        {
+            Stop();
         }
     }
 }

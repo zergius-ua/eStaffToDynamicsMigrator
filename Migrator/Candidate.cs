@@ -17,13 +17,16 @@ namespace Migrator
         public string Code { get; set; }
 
         [XmlElement("lastname", Form = XmlSchemaForm.Unqualified)]
-        public string Lastname { get; set; }
+        public string LastName { get; set; }
 
         [XmlElement("firstname", Form = XmlSchemaForm.Unqualified)]
-        public string Firstname { get; set; }
+        public string FirstName { get; set; }
+
+        [XmlElement("middlename", Form = XmlSchemaForm.Unqualified)]
+        public string MiddleName { get; set; }
 
         [XmlElement("fullname", Form = XmlSchemaForm.Unqualified)]
-        public string Fullname { get; set; }
+        public string FullName { get; set; }
 
         [XmlElement("is_candidate", Form = XmlSchemaForm.Unqualified)]
         public string IsCandidate { get; set; }
@@ -43,14 +46,23 @@ namespace Migrator
         [XmlElement("address", Form = XmlSchemaForm.Unqualified)]
         public string Address { get; set; }
 
+        [XmlElement("education", Form = XmlSchemaForm.Unqualified)]
+        public string Education { get; set; }
+
         [XmlElement("mobile_phone", Form = XmlSchemaForm.Unqualified)]
         public string MobilePhone { get; set; }
 
         [XmlElement("home_phone", Form = XmlSchemaForm.Unqualified)]
         public string HomePhone { get; set; }
 
+        [XmlElement("work_phone", Form = XmlSchemaForm.Unqualified)]
+        public string WorkPhone { get; set; }
+
         [XmlElement("email", Form = XmlSchemaForm.Unqualified)]
         public string Email { get; set; }
+
+        [XmlElement("email2", Form = XmlSchemaForm.Unqualified)]
+        public string Email2 { get; set; }
 
         [XmlElement("creation_date", Form = XmlSchemaForm.Unqualified)]
         public string CreationDate { get; set; }
