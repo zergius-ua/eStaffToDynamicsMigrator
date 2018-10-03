@@ -20,29 +20,37 @@ namespace Migrator
         private static IEnumerable<CandidateDyn> _candidatesDyn;
         private const string ImportDataPathBase = @"d:\EStaff_Server\data_rcr\obj\";
         private static IOrganizationService _orgService;
-        private static IList<Entity> _entities;
+        private static IList<Entity> _entities = new List<Entity>();
 
         public static void Main(string[] args)
         {
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             
-            /*Console.WriteLine("Reading eStaff data...");
+            // Read eStaff data (all records)
+            Console.WriteLine("Reading eStaff data...");
             using (var spinner = new Spinner(Console.CursorLeft, Console.CursorTop))
             {
                 spinner.Start();
                 _candidates = ReadXmlFolder<Candidate>($@"{ImportDataPathBase}candidates\");
                 spinner.Stop();
+                /*
                 Console.WriteLine("Converting to Dynamics 365...");
                 spinner.Start();
                 _candidatesDyn = ConvertToCandidateDyn(_candidates);
                 spinner.Stop();
-            }*/
+                */
+            }
 
+            // Connect to Dynamics 365
             var isConnected = ConnectToCrm();
             if (isConnected)
             {
                 Console.WriteLine("Connected");
+                
+                /*
                 Console.WriteLine("Retrieving data...");
+
+                // Read CRM data
                 using (var spinner = new Spinner(Console.CursorLeft, Console.CursorTop))
                 {
                     spinner.Start();
@@ -57,25 +65,66 @@ namespace Migrator
                     var collection = _orgService.RetrieveMultiple(qe);
                     spinner.Stop();
                     
-                    _entities = collection.Entities.ToList();
-                    /*collection.Entities.ToList().ForEach(entity =>
-                    {
-                        if(entity.GetAttributeValue<string>("yomifullname") == "Andriy Syrovenko")
-                        {
-                            _entities.Add(entity);
-                        }
-                    });*/
-                    var ent = _entities[0];
-                    ent["mobilephone"] = ent["mobilephone"] + " (---)";
-                    // ent.Attributes[""] = "";
-                    // ent.GetAttributeValue<DateTime>("") = DateTime.Now;
-                    _orgService.Update(ent);
+                    // /*
+//                     _entities = collection.Entities.ToList();
+//                    collection.Entities.ToList().ForEach(entity =>
+//                    {
+//                        if(entity.GetAttributeValue<string>("yomifullname") == "Andriy Syrovenko")
+//                        {
+//                            _entities.Add(entity);
+//                        }
+//                    });
+//                    var ent = _entities[0];
+//                    ent["mobilephone"] = ent["mobilephone"] + " (---)";
+//                    // ent.Attributes[""] = "";
+//                    // ent.GetAttributeValue<DateTime>("") = DateTime.Now;
+//                    _orgService.Update(ent);
+                    // #1#
                     
                     Console.SetCursorPosition(Console.CursorLeft, Console.CursorTop);
+                }
+            // */
+                
+                // Form records to upload
+                {
+                    _candidates.ToList().ForEach(c =>
+                    {
+                        if (LookupExisting(c.FullName))
+                        {
+                            // Update
+                        }
+                        else
+                        {
+                            // Create
+                        }
+                    });
+                }
+                // Upload data to Dynamics 365
+                using (var spinner = new Spinner(Console.CursorLeft, Console.CursorTop))
+                {
+                    spinner.Start();
+                    spinner.Stop();
                 }
             }
 
             Console.WriteLine("Exiting application.");
+        }
+
+        private static bool LookupExisting(string fullName)
+        {
+            using (var spinner = new Spinner(Console.CursorLeft, Console.CursorTop))
+            {
+                spinner.Start();
+                var qe = new QueryExpression("contact")
+                {
+                    ColumnSet = new ColumnSet(true),
+                    Criteria = new FilterExpression()
+                };
+                qe.Criteria.AddCondition(new ConditionExpression("yomifullname", ConditionOperator.Equal, fullName));
+                var collection = _orgService.RetrieveMultiple(qe);
+                spinner.Stop();
+                return collection.Entities.Any();
+            }
         }
 
         private static bool ConnectToCrm()
@@ -139,6 +188,7 @@ namespace Migrator
             return password;
         }
 
+        /*
         private static IEnumerable<CandidateDyn> ConvertToCandidateDyn(IEnumerable<Candidate> candidates)
         {
             var list = new List<CandidateDyn>();
@@ -149,7 +199,8 @@ namespace Migrator
             });
             return list;
         }
-
+        */
+        
         private static IEnumerable<T> ReadXmlFolder<T>(string path) where T : class
         {
             var collection = new List<T>();

@@ -1,6 +1,8 @@
 using System;
+using System.Linq;
 using System.Xml.Schema;
 using System.Xml.Serialization;
+using Microsoft.Xrm.Sdk;
 
 namespace Migrator
 {
@@ -238,5 +240,86 @@ namespace Migrator
     {
         [XmlElement("user_login", Form = XmlSchemaForm.Unqualified)]
         public string UserLogin { get; set; }
+    }
+
+    public static class MyExtensions
+    {
+        private static void SetField(AttributeCollection attr, string name, object value)
+        {
+            if ((value as string)?.IsNotNullOrEmpty() == false) return;
+            attr[name] = value;
+        }
+
+        private static Entity SetupEntity(Entity e, Candidate can)
+        {
+            var a = e.Attributes;
+            SetField(a, "address2_composite", can.Address);
+            SetField(a, "emailaddress1", can.Email2);
+            SetField(a, "emailaddress2", can.Email);
+            SetField(a, "firstname", can.FirstName);
+            SetField(a, "fullname", $"{can.FirstName} {can.LastName}");
+            SetField(a, "yomifullname", $"{can.FirstName} {can.LastName}");
+            SetField(a, "lastname", can.LastName);
+            SetField(a, "mobilephone", can.MobilePhone);
+            SetField(a, "business2", can.WorkPhone);
+            SetField(a, "birthdate", DateTime.Parse(can.BirthDate));
+            if (can.Attachments.Any())
+            {
+                can.Attachments
+                    .Where(ax => ax.TypeId == "resume")
+                    .ToList()
+                    .ForEach(att =>
+                    {
+                        SetField(a, "dcrs_resume", string.Join(Environment.NewLine, att.Text.Value));
+                        if (!string.IsNullOrEmpty(att.Date))
+                            SetField(a, "dcrs_resumedate", DateTime.Parse(att.Date));
+                    });
+            }
+
+            return e;
+        }
+
+        public static Entity ToEntity(this Candidate can)
+        {
+            var e = new Entity();
+            e = SetupEntity(e, can);
+            /*
+            var a = e.Attributes;
+            SetField(a, "address2_composite", can.Address);
+            SetField(a, "emailaddress1", can.Email2);
+            SetField(a, "emailaddress2", can.Email);
+            SetField(a, "firstname", can.FirstName);
+            SetField(a, "fullname", $"{can.FirstName} {can.LastName}");
+            SetField(a, "yomifullname", $"{can.FirstName} {can.LastName}");
+            SetField(a, "lastname", can.LastName);
+            SetField(a, "mobilephone", can.MobilePhone);
+            SetField(a, "business2", can.WorkPhone);
+            SetField(a, "birthdate", DateTime.Parse(can.BirthDate));
+            if (can.Attachments.Any())
+            {
+                can.Attachments
+                    .Where(ax => ax.TypeId == "resume")
+                    .ToList()
+                    .ForEach(att =>
+                    {
+                        SetField(a, "dcrs_resume", string.Join(Environment.NewLine, att.Text.Value));
+                        if(!string.IsNullOrEmpty(att.Date))
+                            SetField(a, "dcrs_resumedate", DateTime.Parse(att.Date));
+                    });
+            }
+            */
+
+            return e;
+        }
+
+        public static Entity UpdateEntity(this Entity e, Candidate can)
+        {
+            return SetupEntity(e, can);
+        }
+
+        public static bool IsNotNullOrEmpty(this string src)
+        {
+            return !string.IsNullOrEmpty(src);
+        }
     }
 }

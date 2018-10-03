@@ -1,9 +1,11 @@
 using System;
 using System.Linq;
+using System.Xml.Serialization;
 using Microsoft.Xrm.Sdk;
 
 namespace Migrator
 {
+    [Serializable]
     public class CandidateDyn
     {
         public CandidateDyn(Candidate candidate)
@@ -36,6 +38,7 @@ namespace Migrator
             }
         }
 
+        [XmlElement("accountrolecode")]
         public OptionSetValue AccountRoleCode { get; set; }
         public AddressDyn Address1 { get; set; }
         public AddressDyn Address2 { get; set; }
