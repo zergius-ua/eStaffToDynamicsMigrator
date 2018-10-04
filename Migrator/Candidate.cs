@@ -252,6 +252,7 @@ namespace Migrator
 
         private static Entity SetupEntity(Entity e, Candidate can)
         {
+            e.LogicalName = "contact";
             var a = e.Attributes;
             SetField(a, "address2_composite", can.Address);
             SetField(a, "emailaddress1", can.Email2);
@@ -262,16 +263,26 @@ namespace Migrator
             SetField(a, "lastname", can.LastName);
             SetField(a, "mobilephone", can.MobilePhone);
             SetField(a, "business2", can.WorkPhone);
-            SetField(a, "birthdate", DateTime.Parse(can.BirthDate));
-            if (can.Attachments.Any())
+
+            a["dcrs_candidatesource"] = new OptionSetValue((int) 100000002);
+            a["new_country"] = new OptionSetValue((int) 100000002);
+            a["dcrs_primaryskill"] = new OptionSetValue((int) 100000008);
+
+            if (can.BirthDate.IsNotNullOrEmpty())
+            {
+                SetField(a, "birthdate", DateTime.Parse(can.BirthDate));
+            }
+
+            if (can.Attachments != null && can.Attachments.Any())
             {
                 can.Attachments
-                    .Where(ax => ax.TypeId == "resume")
+                    .Where(ax => ax.TypeId != null && ax.TypeId == "resume")
                     .ToList()
                     .ForEach(att =>
                     {
-                        SetField(a, "dcrs_resume", string.Join(Environment.NewLine, att.Text.Value));
-                        if (!string.IsNullOrEmpty(att.Date))
+                        if (att.Text != null)
+                            SetField(a, "dcrs_resume", string.Join(Environment.NewLine, att.Text.Value));
+                        if (att.Date.IsNotNullOrEmpty())
                             SetField(a, "dcrs_resumedate", DateTime.Parse(att.Date));
                     });
             }
@@ -281,43 +292,15 @@ namespace Migrator
 
         public static Entity ToEntity(this Candidate can)
         {
-            var e = new Entity();
-            e = SetupEntity(e, can);
-            /*
-            var a = e.Attributes;
-            SetField(a, "address2_composite", can.Address);
-            SetField(a, "emailaddress1", can.Email2);
-            SetField(a, "emailaddress2", can.Email);
-            SetField(a, "firstname", can.FirstName);
-            SetField(a, "fullname", $"{can.FirstName} {can.LastName}");
-            SetField(a, "yomifullname", $"{can.FirstName} {can.LastName}");
-            SetField(a, "lastname", can.LastName);
-            SetField(a, "mobilephone", can.MobilePhone);
-            SetField(a, "business2", can.WorkPhone);
-            SetField(a, "birthdate", DateTime.Parse(can.BirthDate));
-            if (can.Attachments.Any())
-            {
-                can.Attachments
-                    .Where(ax => ax.TypeId == "resume")
-                    .ToList()
-                    .ForEach(att =>
-                    {
-                        SetField(a, "dcrs_resume", string.Join(Environment.NewLine, att.Text.Value));
-                        if(!string.IsNullOrEmpty(att.Date))
-                            SetField(a, "dcrs_resumedate", DateTime.Parse(att.Date));
-                    });
-            }
-            */
-
-            return e;
+            return SetupEntity(new Entity(), can);
         }
 
-        public static Entity UpdateEntity(this Entity e, Candidate can)
+        public static void UpdateEntity(this Entity e, Candidate can)
         {
-            return SetupEntity(e, can);
+            SetupEntity(e, can);
         }
 
-        public static bool IsNotNullOrEmpty(this string src)
+        private static bool IsNotNullOrEmpty(this string src)
         {
             return !string.IsNullOrEmpty(src);
         }

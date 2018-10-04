@@ -5,10 +5,10 @@ using System.Linq;
 using System.Net;
 using System.Security;
 using System.Text;
-using System.Threading;
 using System.Xml.Serialization;
 using Microsoft.Crm.Sdk.Messages;
 using Microsoft.Xrm.Sdk;
+using Microsoft.Xrm.Sdk.Messages;
 using Microsoft.Xrm.Sdk.Query;
 using Microsoft.Xrm.Tooling.Connector;
 
@@ -16,105 +16,180 @@ namespace Migrator
 {
     internal static class Program
     {
-        private static IEnumerable<Candidate> _candidates;
-        private static IEnumerable<CandidateDyn> _candidatesDyn;
+        private static readonly List<Candidate> Candidates = new List<Candidate>();
         private const string ImportDataPathBase = @"d:\EStaff_Server\data_rcr\obj\";
         private static IOrganizationService _orgService;
-        private static IList<Entity> _entities = new List<Entity>();
+        private const int FlushCount = 1;
+        private static bool _isConnected = false;
 
         public static void Main(string[] args)
         {
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-            
-            // Read eStaff data (all records)
-            Console.WriteLine("Reading eStaff data...");
-            using (var spinner = new Spinner(Console.CursorLeft, Console.CursorTop))
+            _isConnected = ConnectToCrm();
+
+            var fileNames = Directory.GetFiles($@"{ImportDataPathBase}candidates\", "*.xml", SearchOption.AllDirectories).ToList().Skip(150).ToList();
+            Console.WriteLine($"Started at: {DateTime.Now}");
+            while(fileNames.Any())
             {
-                spinner.Start();
-                _candidates = ReadXmlFolder<Candidate>($@"{ImportDataPathBase}candidates\");
-                spinner.Stop();
-                /*
-                Console.WriteLine("Converting to Dynamics 365...");
-                spinner.Start();
-                _candidatesDyn = ConvertToCandidateDyn(_candidates);
-                spinner.Stop();
-                */
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                var tempFolderList = fileNames.Count > FlushCount ? fileNames.GetRange(0, FlushCount) : fileNames;
+                foreach (var fileName in tempFolderList)
+                {
+                    // using (var spinner = new Spinner(Console.CursorLeft, Console.CursorTop))
+                    {
+                        // spinner.Start();
+                        Candidates.AddRange(ReadXmlSubFolder<Candidate>(fileName));
+                        // spinner.Stop();
+                    }
+                }
+                UploadCrmData();
+                fileNames.RemoveRange(0, tempFolderList.Count);
+                watch.Stop();
+                Console.WriteLine($"Yet {fileNames.Count} to finish; Elapsed: {watch.Elapsed.Milliseconds} ms.");
             }
 
-            // Connect to Dynamics 365
-            var isConnected = ConnectToCrm();
-            if (isConnected)
-            {
-                Console.WriteLine("Connected");
-                
-                /*
-                Console.WriteLine("Retrieving data...");
+            Console.WriteLine($"Finished at: {DateTime.Now}");
+            Console.WriteLine("Exiting application.");
+        }
 
-                // Read CRM data
-                using (var spinner = new Spinner(Console.CursorLeft, Console.CursorTop))
+        private static IList<T> ReadXmlSubFolder<T>(string fileName) where T : class
+        {
+            var collection = new List<T>();
+            var ser = new XmlSerializer(typeof(T));
+            var obj = ser.Deserialize(new FileStream(fileName, FileMode.Open)) as T;
+            if (obj?.GetType() == typeof(Candidate))
+            {
+                var candidate = obj as Candidate;
+                if (candidate != null)
                 {
-                    spinner.Start();
-                    var qe = new QueryExpression("contact")
-                    {
-                        ColumnSet = new ColumnSet(true),
-                        Criteria = new FilterExpression()
-                    };
-                    qe.Criteria.AddCondition(new ConditionExpression("yomifullname", ConditionOperator.Equal, "Andriy Syrovenko"));
-                    // qe.Criteria.AddCondition(new ConditionExpression("yomifullname", ConditionOperator.Equal, "Andrew Shtompel"));
-                    // this will retrieve all fields, you should only retrieve attribute you need ;)
-                    var collection = _orgService.RetrieveMultiple(qe);
-                    spinner.Stop();
-                    
-                    // /*
-//                     _entities = collection.Entities.ToList();
-//                    collection.Entities.ToList().ForEach(entity =>
-//                    {
-//                        if(entity.GetAttributeValue<string>("yomifullname") == "Andriy Syrovenko")
-//                        {
-//                            _entities.Add(entity);
-//                        }
-//                    });
-//                    var ent = _entities[0];
-//                    ent["mobilephone"] = ent["mobilephone"] + " (---)";
-//                    // ent.Attributes[""] = "";
-//                    // ent.GetAttributeValue<DateTime>("") = DateTime.Now;
-//                    _orgService.Update(ent);
-                    // #1#
-                    
-                    Console.SetCursorPosition(Console.CursorLeft, Console.CursorTop);
+                    candidate = LoadAttachments(candidate);
+                    collection.Add(candidate as T);
                 }
-            // */
-                
-                // Form records to upload
+                else
                 {
-                    _candidates.ToList().ForEach(c =>
+                    collection.Add(obj);
+                }
+            }
+
+            //else if(obj?.GetType() == )
+            // if (obj != null)
+            // collection.Add(obj);
+            return collection;
+        }
+
+        private static void UploadCrmData()
+        {
+            // Connect to Dynamics 365
+            if (_isConnected)
+            {
+                // Upload data to Dynamics 365
+                // using (var spinner = new Spinner(Console.CursorLeft, Console.CursorTop))
+                {
+                    // spinner.Start();
+                    // Form records to upload
+                    var entityCreateList = new List<Entity>();
+                    var entityUpdateList = new List<Entity>();
+                    Candidates.ToList().ForEach(c =>
                     {
-                        if (LookupExisting(c.FullName))
+                        var e = LookupExisting($"{c.FirstName} {c.LastName}");
+                        if (e != null)
                         {
                             // Update
+                            e.UpdateEntity(c);
+                            entityUpdateList.Add(e);
                         }
                         else
                         {
                             // Create
+                            e = c.ToEntity();
+                            if (e != null)
+                            {
+                                entityCreateList.Add(e);
+                            }
+                        }
+
+                        if (entityCreateList.Count >= FlushCount)
+                        {
+                            CreateEntities(entityCreateList);
+                            entityCreateList.Clear();
+                        }
+
+                        if (entityUpdateList.Count >= FlushCount)
+                        {
+                            UpdateEntities(entityUpdateList);
+                            entityUpdateList.Clear();
                         }
                     });
-                }
-                // Upload data to Dynamics 365
-                using (var spinner = new Spinner(Console.CursorLeft, Console.CursorTop))
-                {
-                    spinner.Start();
-                    spinner.Stop();
+                    // Finish rest of data
+                    UpdateEntities(entityUpdateList);
+                    CreateEntities(entityCreateList);
+
+                    // spinner.Stop();
+                    var type = Candidates.GetType();
+                    Candidates.Clear();
                 }
             }
-
-            Console.WriteLine("Exiting application.");
         }
 
-        private static bool LookupExisting(string fullName)
+        private static bool CreateEntities(List<Entity> entityCreateList)
         {
-            using (var spinner = new Spinner(Console.CursorLeft, Console.CursorTop))
+            if (!entityCreateList.Any()) return false;
+            Console.WriteLine($"Creating {entityCreateList[0].Attributes["fullname"]}");
+            var multipleRequest = new ExecuteMultipleRequest()
             {
-                spinner.Start();
+                Settings = new ExecuteMultipleSettings()
+                {
+                    ContinueOnError = false,
+                    ReturnResponses = true
+                },
+                Requests = new OrganizationRequestCollection()
+            };
+            // var sb = new StringBuilder();
+            entityCreateList.ForEach(entity =>
+            {
+                var createRequest = new CreateRequest {Target = entity};
+                multipleRequest.Requests.Add(createRequest);
+                // sb.Append("    ").Append(entity.Attributes["fullname"]);
+            });
+            // Console.WriteLine($"Creating:{sb}");
+            var multipleResponse = (ExecuteMultipleResponse) _orgService.Execute(multipleRequest);
+            var success = !multipleResponse.Results.Where(r => r.Key == "IsFaulted" && r.Value.ToString() == "True").ToList().Any();
+            Console.WriteLine(!success ? "Create failed!" : "OK!");
+            return success;
+        }
+
+        private static bool UpdateEntities(List<Entity> entityUpdateList)
+        {
+            if (!entityUpdateList.Any()) return false;
+            Console.WriteLine($"Updating {entityUpdateList[0].Attributes["fullname"]}");
+            var multipleRequest = new ExecuteMultipleRequest()
+            {
+                Settings = new ExecuteMultipleSettings()
+                {
+                    ContinueOnError = false,
+                    ReturnResponses = true
+                },
+                Requests = new OrganizationRequestCollection()
+            };
+            // var sb = new StringBuilder();
+            entityUpdateList.ForEach(entity =>
+            {
+                var updateRequest = new UpdateRequest {Target = entity};
+                multipleRequest.Requests.Add(updateRequest);
+                // sb.Append("    ").Append(entity.Attributes["fullname"]);
+            });
+            // Console.WriteLine($"Updating:{sb}");
+            var multipleResponse = (ExecuteMultipleResponse) _orgService.Execute(multipleRequest);
+            var success = !multipleResponse.Results.Where(r => r.Key == "IsFaulted" && r.Value.ToString() == "True").ToList().Any();
+            Console.WriteLine(!success ? "Update failed!" : "OK!");
+            return success;
+        }
+
+        private static Entity LookupExisting(string fullName)
+        {
+            // using (var spinner = new Spinner(Console.CursorLeft, Console.CursorTop))
+            {
+                // spinner.Start();
                 var qe = new QueryExpression("contact")
                 {
                     ColumnSet = new ColumnSet(true),
@@ -122,8 +197,8 @@ namespace Migrator
                 };
                 qe.Criteria.AddCondition(new ConditionExpression("yomifullname", ConditionOperator.Equal, fullName));
                 var collection = _orgService.RetrieveMultiple(qe);
-                spinner.Stop();
-                return collection.Entities.Any();
+                // spinner.Stop();
+                return collection.Entities.FirstOrDefault();
             }
         }
 
@@ -132,13 +207,14 @@ namespace Migrator
             const string userName = "Sergey.Smirnoff@teaminternational.com";
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             var password = ReadPassword();
+
             Console.WriteLine("Connecting...");
-            using (var spinner = new Spinner(Console.CursorLeft, Console.CursorTop))
+            // using (var spinner = new Spinner(Console.CursorLeft, Console.CursorTop))
             {
-                spinner.Start();
+                // spinner.Start();
                 var crmServiceClient = new CrmServiceClient(userName, password, "NorthAmerica", "teamint", false, true, null, true);
                 _orgService = crmServiceClient.OrganizationWebProxyClient ?? (IOrganizationService) crmServiceClient.OrganizationServiceProxy;
-                spinner.Stop();
+                // spinner.Stop();
             }
 
             var userRequest = new WhoAmIRequest();
@@ -188,48 +264,6 @@ namespace Migrator
             return password;
         }
 
-        /*
-        private static IEnumerable<CandidateDyn> ConvertToCandidateDyn(IEnumerable<Candidate> candidates)
-        {
-            var list = new List<CandidateDyn>();
-            candidates.Where(i=>i.FullName == "Syrovenko Andriy").ToList().ForEach(candidate =>
-            {
-                var candidateDyn = new CandidateDyn(candidate);
-                list.Add(candidateDyn);
-            });
-            return list;
-        }
-        */
-        
-        private static IEnumerable<T> ReadXmlFolder<T>(string path) where T : class
-        {
-            var collection = new List<T>();
-            var fileNames = Directory.GetFiles(path, "*.xml", SearchOption.AllDirectories).ToList();
-            var ser = new XmlSerializer(typeof(T));
-            fileNames.ForEach(name =>
-            {
-                var obj = ser.Deserialize(new FileStream(name, FileMode.Open)) as T;
-                if (obj?.GetType() == typeof(Candidate))
-                {
-                    var candidate = obj as Candidate;
-                    if (candidate != null)
-                    {
-                        candidate = LoadAttachments(candidate);
-                        collection.Add(candidate as T);
-                    }
-                    else
-                    {
-                        collection.Add(obj);
-                    }
-                }
-
-                //else if(obj?.GetType() == )
-                // if (obj != null)
-                // collection.Add(obj);
-            });
-            return collection;
-        }
-
         private static (string, string) ParseId(string id)
         {
             if (string.IsNullOrEmpty(id) || id.Length < 18) return (string.Empty, string.Empty);
@@ -242,72 +276,15 @@ namespace Migrator
             if (candidate.Attachments == null) return candidate;
             var srcFolderName = $@"{ImportDataPathBase}candidates\{candidate.Folder.Folder}\{candidate.Folder.SubFolder}_files";
             if (!Directory.Exists(srcFolderName)) return candidate;
-            var fileNames = Directory.GetFiles(srcFolderName, "*", SearchOption.AllDirectories).ToList();
-            fileNames.ForEach(name =>
+            candidate.Attachments.ToList().ForEach(a =>
             {
-                var atts = candidate.Attachments.Where(a => a.Text != null).ToList();
-                atts.ForEach(att => { att.Text.Value = File.ReadAllLines(name); });
-                atts = candidate.Attachments.Where(a => a.Data != null).ToList();
-                atts.ForEach(att => { att.Data.Value = File.ReadAllBytes(name); });
+                if (a.TypeId == "resume" && a.Text != null)
+                {
+                    a.Text.Value = File.ReadAllLines($@"{srcFolderName}\{a.Text.ExtObjectId.Substring(2)}");
+                }
             });
+
             return candidate;
-        }
-    }
-
-    public class Spinner : IDisposable
-    {
-        private const string Sequence = @"/-\|";
-        private int counter = 0;
-        private readonly int left;
-        private readonly int top;
-        private readonly int delay;
-        private bool active;
-        private readonly Thread thread;
-
-        public Spinner(int left, int top, int delay = 100)
-        {
-            this.left = left;
-            this.top = top;
-            this.delay = delay;
-            thread = new Thread(Spin);
-        }
-
-        public void Start()
-        {
-            active = true;
-            if (!thread.IsAlive)
-                thread.Start();
-        }
-
-        public void Stop()
-        {
-            active = false;
-            Console.Write("\b");
-        }
-
-        private void Spin()
-        {
-            while (active)
-            {
-                Turn();
-                Thread.Sleep(delay);
-            }
-        }
-
-        private void Draw(char c)
-        {
-            Console.SetCursorPosition(left, top);
-            Console.Write(c);
-        }
-
-        private void Turn()
-        {
-            Draw(Sequence[++counter % Sequence.Length]);
-        }
-
-        public void Dispose()
-        {
-            Stop();
         }
     }
 }

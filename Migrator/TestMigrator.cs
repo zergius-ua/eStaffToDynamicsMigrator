@@ -20,5 +20,13 @@ namespace Migrator
             var e = c.ToEntity();
             Assert.Equal("Address line", e.Attributes["address2_composite"]);
         }
+
+        [Fact]
+        private void CheckRange()
+        {
+            var max = 300;
+            var i = 230;
+            var res = max % i;
+        }
     }
 }
