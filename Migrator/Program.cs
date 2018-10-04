@@ -21,16 +21,16 @@ namespace Migrator
         private static IOrganizationService _orgService;
         private const int FlushCount = 1;
         private static bool _isConnected = false;
-        private int idx = 0;
-        
+        private static int _idx = 2316;
+
         public static void Main(string[] args)
         {
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             _isConnected = ConnectToCrm();
 
-            var fileNames = Directory.GetFiles($@"{ImportDataPathBase}candidates\", "*.xml", SearchOption.AllDirectories).ToList(); //.Skip(150+377).ToList();
+            var fileNames = Directory.GetFiles($@"{ImportDataPathBase}candidates\", "*.xml", SearchOption.AllDirectories).ToList().Skip(_idx).ToList();
             Console.WriteLine($"Started at: {DateTime.Now}");
-            while(fileNames.Any())
+            while (fileNames.Any())
             {
                 var tempFolderList = fileNames.Count > FlushCount ? fileNames.GetRange(0, FlushCount) : fileNames;
                 foreach (var fileName in tempFolderList)
@@ -39,7 +39,7 @@ namespace Migrator
                 }
 
                 UploadCrmData();
-                idx++;
+                _idx++;
                 fileNames.RemoveRange(0, tempFolderList.Count);
             }
 
@@ -117,7 +117,7 @@ namespace Migrator
         private static bool CreateEntities(List<Entity> entityCreateList)
         {
             if (!entityCreateList.Any()) return false;
-            Console.Write($"{idx} : Creating {entityCreateList[0].Attributes["fullname"]} : ");
+            Console.Write($"{_idx} : Creating {entityCreateList[0].Attributes["fullname"]} : ");
             var multipleRequest = new ExecuteMultipleRequest()
             {
                 Settings = new ExecuteMultipleSettings()
@@ -134,14 +134,17 @@ namespace Migrator
             });
             var multipleResponse = (ExecuteMultipleResponse) _orgService.Execute(multipleRequest);
             var success = !multipleResponse.Results.Where(r => r.Key == "IsFaulted" && r.Value.ToString() == "True").ToList().Any();
+            var color = Console.ForegroundColor;
+            Console.ForegroundColor = success ? ConsoleColor.DarkGreen : ConsoleColor.DarkRed;
             Console.WriteLine(!success ? "Create failed!" : "OK!");
+            Console.ForegroundColor = color;
             return success;
         }
 
         private static bool UpdateEntities(List<Entity> entityUpdateList)
         {
             if (!entityUpdateList.Any()) return false;
-            Console.Write($"{idx} : Updating {entityUpdateList[0].Attributes["fullname"]} : ");
+            Console.Write($"{_idx} : Updating {entityUpdateList[0].Attributes["fullname"]} : ");
             var multipleRequest = new ExecuteMultipleRequest()
             {
                 Settings = new ExecuteMultipleSettings()
@@ -158,7 +161,10 @@ namespace Migrator
             });
             var multipleResponse = (ExecuteMultipleResponse) _orgService.Execute(multipleRequest);
             var success = !multipleResponse.Results.Where(r => r.Key == "IsFaulted" && r.Value.ToString() == "True").ToList().Any();
+            var color = Console.ForegroundColor;
+            Console.ForegroundColor = success ? ConsoleColor.DarkGreen : ConsoleColor.DarkRed;
             Console.WriteLine(!success ? "Update failed!" : "OK!");
+            Console.ForegroundColor = color;
             return success;
         }
 
@@ -245,7 +251,7 @@ namespace Migrator
             if (!Directory.Exists(srcFolderName)) return candidate;
             candidate.Attachments.ToList().ForEach(a =>
             {
-                if (a.TypeId == "resume" && a.Text != null)
+                if (a.TypeId == "resume" && a.Text?.ExtObjectId != null)
                 {
                     a.Text.Value = File.ReadAllLines($@"{srcFolderName}\{a.Text.ExtObjectId.Substring(2)}");
                 }
