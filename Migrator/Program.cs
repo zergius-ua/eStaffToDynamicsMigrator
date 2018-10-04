@@ -21,31 +21,26 @@ namespace Migrator
         private static IOrganizationService _orgService;
         private const int FlushCount = 1;
         private static bool _isConnected = false;
-
+        private int idx = 0;
+        
         public static void Main(string[] args)
         {
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             _isConnected = ConnectToCrm();
 
-            var fileNames = Directory.GetFiles($@"{ImportDataPathBase}candidates\", "*.xml", SearchOption.AllDirectories).ToList().Skip(150).ToList();
+            var fileNames = Directory.GetFiles($@"{ImportDataPathBase}candidates\", "*.xml", SearchOption.AllDirectories).ToList(); //.Skip(150+377).ToList();
             Console.WriteLine($"Started at: {DateTime.Now}");
             while(fileNames.Any())
             {
-                var watch = System.Diagnostics.Stopwatch.StartNew();
                 var tempFolderList = fileNames.Count > FlushCount ? fileNames.GetRange(0, FlushCount) : fileNames;
                 foreach (var fileName in tempFolderList)
                 {
-                    // using (var spinner = new Spinner(Console.CursorLeft, Console.CursorTop))
-                    {
-                        // spinner.Start();
-                        Candidates.AddRange(ReadXmlSubFolder<Candidate>(fileName));
-                        // spinner.Stop();
-                    }
+                    Candidates.AddRange(ReadXmlSubFolder<Candidate>(fileName));
                 }
+
                 UploadCrmData();
+                idx++;
                 fileNames.RemoveRange(0, tempFolderList.Count);
-                watch.Stop();
-                Console.WriteLine($"Yet {fileNames.Count} to finish; Elapsed: {watch.Elapsed.Milliseconds} ms.");
             }
 
             Console.WriteLine($"Finished at: {DateTime.Now}");
@@ -79,62 +74,50 @@ namespace Migrator
 
         private static void UploadCrmData()
         {
-            // Connect to Dynamics 365
             if (_isConnected)
             {
                 // Upload data to Dynamics 365
-                // using (var spinner = new Spinner(Console.CursorLeft, Console.CursorTop))
+                var entityCreateList = new List<Entity>();
+                var entityUpdateList = new List<Entity>();
+                Candidates.ToList().ForEach(c =>
                 {
-                    // spinner.Start();
-                    // Form records to upload
-                    var entityCreateList = new List<Entity>();
-                    var entityUpdateList = new List<Entity>();
-                    Candidates.ToList().ForEach(c =>
+                    var e = LookupExisting($"{c.FirstName} {c.LastName}");
+                    if (e != null)
                     {
-                        var e = LookupExisting($"{c.FirstName} {c.LastName}");
+                        // Update
+                        e.UpdateEntity(c);
+                        entityUpdateList.Add(e);
+                    }
+                    else
+                    {
+                        // Create
+                        e = c.ToEntity();
                         if (e != null)
                         {
-                            // Update
-                            e.UpdateEntity(c);
-                            entityUpdateList.Add(e);
+                            entityCreateList.Add(e);
                         }
-                        else
-                        {
-                            // Create
-                            e = c.ToEntity();
-                            if (e != null)
-                            {
-                                entityCreateList.Add(e);
-                            }
-                        }
+                    }
 
-                        if (entityCreateList.Count >= FlushCount)
-                        {
-                            CreateEntities(entityCreateList);
-                            entityCreateList.Clear();
-                        }
+                    if (entityCreateList.Count >= 0)
+                    {
+                        CreateEntities(entityCreateList);
+                        entityCreateList.Clear();
+                    }
 
-                        if (entityUpdateList.Count >= FlushCount)
-                        {
-                            UpdateEntities(entityUpdateList);
-                            entityUpdateList.Clear();
-                        }
-                    });
-                    // Finish rest of data
-                    UpdateEntities(entityUpdateList);
-                    CreateEntities(entityCreateList);
-
-                    // spinner.Stop();
-                    var type = Candidates.GetType();
-                    Candidates.Clear();
-                }
+                    if (entityUpdateList.Count >= 0)
+                    {
+                        UpdateEntities(entityUpdateList);
+                        entityUpdateList.Clear();
+                    }
+                });
+                Candidates.Clear();
             }
         }
 
         private static bool CreateEntities(List<Entity> entityCreateList)
         {
             if (!entityCreateList.Any()) return false;
-            Console.WriteLine($"Creating {entityCreateList[0].Attributes["fullname"]}");
+            Console.Write($"{idx} : Creating {entityCreateList[0].Attributes["fullname"]} : ");
             var multipleRequest = new ExecuteMultipleRequest()
             {
                 Settings = new ExecuteMultipleSettings()
@@ -144,14 +127,11 @@ namespace Migrator
                 },
                 Requests = new OrganizationRequestCollection()
             };
-            // var sb = new StringBuilder();
             entityCreateList.ForEach(entity =>
             {
                 var createRequest = new CreateRequest {Target = entity};
                 multipleRequest.Requests.Add(createRequest);
-                // sb.Append("    ").Append(entity.Attributes["fullname"]);
             });
-            // Console.WriteLine($"Creating:{sb}");
             var multipleResponse = (ExecuteMultipleResponse) _orgService.Execute(multipleRequest);
             var success = !multipleResponse.Results.Where(r => r.Key == "IsFaulted" && r.Value.ToString() == "True").ToList().Any();
             Console.WriteLine(!success ? "Create failed!" : "OK!");
@@ -161,7 +141,7 @@ namespace Migrator
         private static bool UpdateEntities(List<Entity> entityUpdateList)
         {
             if (!entityUpdateList.Any()) return false;
-            Console.WriteLine($"Updating {entityUpdateList[0].Attributes["fullname"]}");
+            Console.Write($"{idx} : Updating {entityUpdateList[0].Attributes["fullname"]} : ");
             var multipleRequest = new ExecuteMultipleRequest()
             {
                 Settings = new ExecuteMultipleSettings()
@@ -171,14 +151,11 @@ namespace Migrator
                 },
                 Requests = new OrganizationRequestCollection()
             };
-            // var sb = new StringBuilder();
             entityUpdateList.ForEach(entity =>
             {
                 var updateRequest = new UpdateRequest {Target = entity};
                 multipleRequest.Requests.Add(updateRequest);
-                // sb.Append("    ").Append(entity.Attributes["fullname"]);
             });
-            // Console.WriteLine($"Updating:{sb}");
             var multipleResponse = (ExecuteMultipleResponse) _orgService.Execute(multipleRequest);
             var success = !multipleResponse.Results.Where(r => r.Key == "IsFaulted" && r.Value.ToString() == "True").ToList().Any();
             Console.WriteLine(!success ? "Update failed!" : "OK!");
@@ -187,19 +164,14 @@ namespace Migrator
 
         private static Entity LookupExisting(string fullName)
         {
-            // using (var spinner = new Spinner(Console.CursorLeft, Console.CursorTop))
+            var qe = new QueryExpression("contact")
             {
-                // spinner.Start();
-                var qe = new QueryExpression("contact")
-                {
-                    ColumnSet = new ColumnSet(true),
-                    Criteria = new FilterExpression()
-                };
-                qe.Criteria.AddCondition(new ConditionExpression("yomifullname", ConditionOperator.Equal, fullName));
-                var collection = _orgService.RetrieveMultiple(qe);
-                // spinner.Stop();
-                return collection.Entities.FirstOrDefault();
-            }
+                ColumnSet = new ColumnSet(true),
+                Criteria = new FilterExpression()
+            };
+            qe.Criteria.AddCondition(new ConditionExpression("yomifullname", ConditionOperator.Equal, fullName));
+            var collection = _orgService.RetrieveMultiple(qe);
+            return collection.Entities.FirstOrDefault();
         }
 
         private static bool ConnectToCrm()
@@ -209,13 +181,8 @@ namespace Migrator
             var password = ReadPassword();
 
             Console.WriteLine("Connecting...");
-            // using (var spinner = new Spinner(Console.CursorLeft, Console.CursorTop))
-            {
-                // spinner.Start();
-                var crmServiceClient = new CrmServiceClient(userName, password, "NorthAmerica", "teamint", false, true, null, true);
-                _orgService = crmServiceClient.OrganizationWebProxyClient ?? (IOrganizationService) crmServiceClient.OrganizationServiceProxy;
-                // spinner.Stop();
-            }
+            var crmServiceClient = new CrmServiceClient(userName, password, "NorthAmerica", "teamint", false, true, null, true);
+            _orgService = crmServiceClient.OrganizationWebProxyClient ?? (IOrganizationService) crmServiceClient.OrganizationServiceProxy;
 
             var userRequest = new WhoAmIRequest();
             try
